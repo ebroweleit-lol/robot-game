@@ -1,6 +1,6 @@
 # Robot Game
 
-[A Unity game featuring two robots that battle using a push power system.](https://github.com/ebroweleit-lol/robot-game)
+[https://github.com/ebroweleit-lol/robot-game](https://github.com/ebroweleit-lol/robot-game)
 
 ## Technical Details
 
