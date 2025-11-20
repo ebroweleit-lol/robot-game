@@ -50,10 +50,10 @@ public class robot2 : MonoBehaviour
 	public float GroundCheckDistance = 1.0f;
 
 	[Tooltip("Collision detection distance (extends from object center)")]
-	public float CollisionDistance = 0.15f;
+	public float CollisionDistance = 0.3f;
 
 	[Tooltip("Radius for collision detection")]
-	public float CollisionRadius = 0.15f;
+	public float CollisionRadius = 0.3f;
 
 	[Tooltip("Acceleration when pressing movement keys")]
 	public float Acceleration = 10f;
@@ -76,6 +76,8 @@ public class robot2 : MonoBehaviour
 	private float rotationVelocity = 0f;
 	private Rigidbody targetRb;
 	private Vector3 pendingPush = Vector3.zero;
+	private bool isBeingPushed = false;
+	private bool blocked = false;
 
 	void Start()
 	{
@@ -135,12 +137,12 @@ public class robot2 : MonoBehaviour
 		l = Input.GetKey(KeyCode.L);
 #endif
 
-		// Get forward direction for this frame
-		Vector3 forward = GetForwardVector();
+	// Get forward direction for this frame
+	Vector3 forward = GetForwardVector();
 
-		// Check for obstacles ahead
-		bool blocked = false;
-		if (i || k)
+	// Check for obstacles ahead
+	blocked = false;
+	if (i || k)
 		{
 			float move = i ? 1f : -1f;
 			Vector3 checkDir = forward * move;
@@ -189,26 +191,40 @@ public class robot2 : MonoBehaviour
 					// Get other robot's push power
 					float otherPower = otherWASD != null ? otherWASD.GetPushPower() : otherRobot2.GetPushPower();
 					
-					// Compare push powers
-					if (pushPower > otherPower + 10f) // Need at least 10 power advantage
+				// Compare push powers
+				if (pushPower > otherPower) // Any power advantage pushes
 					{
-					// We're stronger - push them back continuously
-					float pushStrength = (pushPower - otherPower) / 100f; // 0 to 1
-					Vector3 pushDirection = checkDir; // Push them in our direction of movement
-					
-					if (otherWASD != null)
-						otherWASD.ApplyPushForce(pushDirection, MaxSpeed * pushStrength * 8f);
-					else
-						otherRobot2.ApplyPushForce(pushDirection, MaxSpeed * pushStrength * 8f);						// Block to prevent pass-through
-						blocked = true;
-					}
-					else
-					{
-						// They're stronger or equal - we get blocked
-						blocked = true;
-					}
+				// We're stronger - push them back continuously
+				float pushStrength = (pushPower - otherPower) / 100f; // 0 to 1
+				Vector3 pushDirection = checkDir; // Push them in our direction of movement
+				
+			// Push them at max speed based on power difference
+			float pushSpeed = MaxSpeed * pushStrength * 20f; // 20x multiplier for strong pushing
+			pushSpeed = Mathf.Min(pushSpeed, MaxSpeed * 0.7f); // Cap at 70% of MaxSpeed for smooth pushing
+			Vector3 targetPushVelocity = pushDirection.normalized * pushSpeed;				// Directly set their velocity for instant push response
+				if (otherWASD != null)
+				{
+					otherWASD.SetVelocity(targetPushVelocity);
+					otherWASD.SetBlocked(true);
 				}
 				else
+				{
+					otherRobot2.SetVelocity(targetPushVelocity);
+					otherRobot2.SetBlocked(true);
+				}
+				// Block stronger robot if very close to prevent overlap
+				if (distance < 0.5f)
+				{
+					blocked = true;
+				}
+			}
+			else
+			{
+				// They're stronger or equal - we get blocked
+				blocked = true;
+			}
+			}
+			else
 				{
 					// It's a wall or obstacle - always block
 					blocked = true;
@@ -223,7 +239,7 @@ public class robot2 : MonoBehaviour
 		}
 
 	// Apply acceleration/deceleration to horizontal velocity
-	if ((i || k) && !blocked)
+	if ((i || k) && !blocked && !isBeingPushed)
 	{
 		float move = i ? 1f : -1f;
 		Vector3 inputDir = forward * move;
@@ -242,11 +258,11 @@ public class robot2 : MonoBehaviour
 		// Accelerate toward input direction
 		horizontalVelocity = Vector3.Lerp(horizontalVelocity, inputDir * MaxSpeed, Acceleration * Time.deltaTime);
 	}
-	else
-	{
-		// Decay push power when not pressing forward (faster decay based on current power)
+		else
+		{
+		// Decay push power when not pressing forward
 		pushPower = Mathf.Max(0f, pushPower - pushPower * PushPowerDecayRate * Time.deltaTime);
-		// Stop when blocked to prevent merging, otherwise apply friction
+		// Apply friction or stop when blocked
 		if (blocked)
 		{
 			horizontalVelocity = Vector3.zero;
@@ -255,10 +271,24 @@ public class robot2 : MonoBehaviour
 		{
 			horizontalVelocity = Vector3.Lerp(horizontalVelocity, Vector3.zero, Friction * Time.deltaTime);
 		}
-	}		// Check if on ground
-		bool isOnGround = CheckGroundBelow();
-
-		// Apply gravity (downward) - but stop at ground
+	}
+	
+	// Zero very small velocities to prevent drift
+	if (horizontalVelocity.magnitude < 0.01f)
+	{
+		horizontalVelocity = Vector3.zero;
+	}
+	
+	// If was being pushed last frame but not moving, zero velocity
+	if (isBeingPushed && blocked)
+	{
+		horizontalVelocity = Vector3.zero;
+	}
+	
+	// Reset flags at end of frame
+	isBeingPushed = false;
+	blocked = false;	// Check if on ground
+	bool isOnGround = CheckGroundBelow();		// Apply gravity (downward) - but stop at ground
 		if (isOnGround)
 		{
 			if (verticalVelocity < 0)
@@ -285,14 +315,6 @@ public class robot2 : MonoBehaviour
 
 	void FixedUpdate()
 	{
-		// Apply pending push first (overrides blocked movement)
-		if (pendingPush != Vector3.zero)
-		{
-			// Apply push more directly for harder pushing
-			horizontalVelocity = Vector3.Lerp(horizontalVelocity, pendingPush, 0.8f);
-			pendingPush = Vector3.zero; // Clear after applying
-		}
-		
 		// Apply movement as velocity to rigidbody
 		if (targetRb != null)
 		{
@@ -371,10 +393,27 @@ public class robot2 : MonoBehaviour
 		pendingPush = Vector3.zero;
 	}
 
+	public void SetVelocity(Vector3 velocity)
+	{
+		// Set velocity - will be applied in next FixedUpdate
+		horizontalVelocity = velocity;
+		isBeingPushed = true; // Mark that we're being pushed
+	}
+
+	public Vector3 GetVelocity()
+	{
+		return horizontalVelocity;
+	}
+
+	public void SetBlocked(bool block)
+	{
+		blocked = block;
+	}
+
 	public void ApplyPushForce(Vector3 direction, float speed)
 	{
-		// Store push to apply in FixedUpdate
-		pendingPush = direction.normalized * speed;
+		// Directly set velocity - no pending, immediate application
+		horizontalVelocity = direction.normalized * speed;
 	}
 
 	void OnGUI()
