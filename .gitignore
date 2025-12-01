@@ -56,3 +56,14 @@ Thumbs.db
 
 # Rider
 .idea/
+
+# Python virtual environments
+myvenv/
+venv/
+env/
+ENV/
+*.pyc
+__pycache__/
+
+# VS Code
+.vscode/

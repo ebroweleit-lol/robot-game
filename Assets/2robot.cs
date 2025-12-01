@@ -141,18 +141,23 @@ public class robot2 : MonoBehaviour
 	Vector3 forward = GetForwardVector();
 
 	// Check for obstacles ahead
-	blocked = false;
-	if (i || k)
-		{
-			float move = i ? 1f : -1f;
-			Vector3 checkDir = forward * move;
-			Vector3 checkPos = Target.transform.position + checkDir * CollisionDistance;
-			
-			Debug.DrawRay(Target.transform.position, checkDir * CollisionDistance, Color.cyan);
-			Debug.DrawLine(checkPos + Vector3.up * 0.5f, checkPos - Vector3.up * 0.5f, Color.magenta);
-			
-		// Check for colliders at the position we're trying to move to
-		Collider[] hits = Physics.OverlapSphere(checkPos, CollisionRadius);
+	// Don't reset blocked if we were pushed - preserve SetBlocked state
+	if (!isBeingPushed)
+	{
+		blocked = false;
+	}
+	{
+		// Determine movement direction: prefer input, otherwise use current velocity direction
+		float move;
+		if (i || k) move = i ? 1f : -1f;
+		else move = Vector3.Dot(horizontalVelocity, forward) >= 0f ? 1f : -1f;
+		Vector3 checkDir = forward * move;
+		
+		// Consider this robot "active" for pushing if player is pressing keys or it's already moving
+		bool activeMover = (i || k) || horizontalVelocity.magnitude > 0.01f;
+		
+		// Check from current position
+		Collider[] hits = Physics.OverlapSphere(Target.transform.position, 0.6f);
 		foreach (Collider col in hits)
 		{
 			// Ignore triggers and our own collider (including children)
@@ -180,7 +185,7 @@ public class robot2 : MonoBehaviour
 				float dot = Vector3.Dot(toObstacle.normalized, checkDir.normalized);
 				
 			// Only block if obstacle is in the forward direction (dot > 0.5 means within ~60 degrees)
-			if (dot > 0.7f && distance < 0.4f)
+			if (dot > 0.7f && distance < 0.5f)
 			{
 				// Check if it's another robot with a movement script
 				WASDMovement otherWASD = col.GetComponent<WASDMovement>();
@@ -191,36 +196,60 @@ public class robot2 : MonoBehaviour
 					// Get other robot's push power
 					float otherPower = otherWASD != null ? otherWASD.GetPushPower() : otherRobot2.GetPushPower();
 					
-				// Compare push powers
-				if (pushPower > otherPower) // Any power advantage pushes
-					{
+			// Compare push powers
+			if (pushPower > otherPower) // Any power advantage pushes
+			{
+				Debug.Log($"[2ROBOT] Pushing! myPower={pushPower:F1} otherPower={otherPower:F1} distance={distance:F2} myVel={horizontalVelocity.magnitude:F2}");
 				// We're stronger - push them back continuously
 				float pushStrength = (pushPower - otherPower) / 100f; // 0 to 1
 				Vector3 pushDirection = checkDir; // Push them in our direction of movement
-				
-			// Push them at max speed based on power difference
-			float pushSpeed = MaxSpeed * pushStrength * 20f; // 20x multiplier for strong pushing
-			pushSpeed = Mathf.Min(pushSpeed, MaxSpeed * 0.7f); // Cap at 70% of MaxSpeed for smooth pushing
-			Vector3 targetPushVelocity = pushDirection.normalized * pushSpeed;				// Directly set their velocity for instant push response
-				if (otherWASD != null)
+				// Push them at our current speed (not faster)
+				float pushSpeed = horizontalVelocity.magnitude;
+				Vector3 targetPushVelocity = pushDirection.normalized * pushSpeed;
+				if (activeMover)
 				{
-					otherWASD.SetVelocity(targetPushVelocity);
-					otherWASD.SetBlocked(true);
+					if (otherWASD != null)
+					{
+						otherWASD.SetVelocity(targetPushVelocity);
+						otherWASD.SetBlocked(true);
+					}
+					else
+					{
+						otherRobot2.SetVelocity(targetPushVelocity);
+						otherRobot2.SetBlocked(true);
+					}
 				}
 				else
 				{
-					otherRobot2.SetVelocity(targetPushVelocity);
-					otherRobot2.SetBlocked(true);
-				}
-				// Block stronger robot if very close to prevent overlap
-				if (distance < 0.5f)
-				{
+					// Not actively moving - enforce block on the other to prevent passive overlap
+					if (otherWASD != null)
+						otherWASD.SetBlocked(true);
+					else if (otherRobot2 != null)
+						otherRobot2.SetBlocked(true);
 					blocked = true;
+				}
+				// Immediately enforce minimum separation to avoid pass-through (independent of Update ordering)
+				{
+					float minSeparation = 0.4f;
+					if (distance < minSeparation)
+					{
+						float pushAway = (minSeparation - distance) + 0.01f;
+						Vector3 sep = pushDirection.normalized * pushAway;
+						if (otherWASD != null && otherWASD.Target != null)
+						{
+							otherWASD.Target.transform.position += sep;
+						}
+						else if (otherRobot2 != null && otherRobot2.Target != null)
+						{
+							otherRobot2.Target.transform.position += sep;
+						}
+					}
 				}
 			}
 			else
 			{
 				// They're stronger or equal - we get blocked
+				Debug.Log($"[2ROBOT] Blocked! myPower={pushPower:F1} otherPower={otherPower:F1} dist={distance:F2}");
 				blocked = true;
 			}
 			}
@@ -232,11 +261,8 @@ public class robot2 : MonoBehaviour
 				break;
 			}
 			}
-		}			if (!blocked && Time.frameCount % 60 == 0)
-			{
-				Debug.Log($"[robot2] Clear path. CheckPos: {checkPos}, Found {hits.Length} colliders");
-			}
 		}
+	}
 
 	// Apply acceleration/deceleration to horizontal velocity
 	if ((i || k) && !blocked && !isBeingPushed)
@@ -279,6 +305,36 @@ public class robot2 : MonoBehaviour
 		horizontalVelocity = Vector3.zero;
 	}
 	
+	// Check if we're too close to another robot and moving towards it
+	// Only apply this when not actively pushing or being pushed
+	if (!isBeingPushed && !(i || k))
+	{
+		Collider[] nearbyHits = Physics.OverlapSphere(Target.transform.position, 0.6f);
+		foreach (Collider col in nearbyHits)
+		{
+			if (col.isTrigger) continue;
+			bool isSelf = col.gameObject == Target || col.gameObject == gameObject ||
+			              col.transform.IsChildOf(Target.transform) || Target.transform.IsChildOf(col.transform);
+			if (isSelf) continue;
+			
+			WASDMovement otherWASD = col.GetComponent<WASDMovement>();
+			robot2 otherRobot2 = col.GetComponent<robot2>();
+			
+			if (otherWASD != null || otherRobot2 != null)
+			{
+				Vector3 toOther = col.transform.position - Target.transform.position;
+				float dist = toOther.magnitude;
+				
+				// If very close and velocity would move us closer, stop
+				if (dist < 0.5f && Vector3.Dot(horizontalVelocity.normalized, toOther.normalized) > 0)
+				{
+					horizontalVelocity = Vector3.zero;
+					break;
+				}
+			}
+		}
+	}
+	
 	// If was being pushed last frame but not moving, zero velocity
 	if (isBeingPushed && blocked)
 	{
@@ -286,8 +342,13 @@ public class robot2 : MonoBehaviour
 	}
 	
 	// Reset flags at end of frame
-	isBeingPushed = false;
-	blocked = false;	// Check if on ground
+	// CRITICAL: Only reset blocked if we weren't just pushed this frame
+	// Otherwise SetBlocked(true) from another robot gets immediately cleared
+	if (!isBeingPushed)
+	{
+		blocked = false;
+	}
+	isBeingPushed = false;	// Check if on ground
 	bool isOnGround = CheckGroundBelow();		// Apply gravity (downward) - but stop at ground
 		if (isOnGround)
 		{
