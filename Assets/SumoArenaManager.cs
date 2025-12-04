@@ -24,7 +24,10 @@ public class SumoArenaManager : MonoBehaviour
     public Transform robot2StartPosition;
     
     [Tooltip("Platform radius (for out-of-bounds detection)")]
-    public float platformRadius = 10f;
+    public float platformRadius = 3.5f;  // For square platforms, this is approximate half-width
+    
+    [Tooltip("Platform half-depth (Z direction) - leave 0 to use platformRadius")]
+    public float platformDepth = 0f;  // 0 means use platformRadius for both dimensions
     
     [Tooltip("Fall height (below this = fallen off)")]
     public float fallHeight = -2f;
@@ -64,7 +67,7 @@ public class SumoArenaManager : MonoBehaviour
             GameObject startPos1 = new GameObject("Robot1StartPosition");
             startPos1.transform.parent = transform;
             Vector3 platformCenter = platform != null ? platform.transform.position : Vector3.zero;
-            startPos1.transform.position = platformCenter + new Vector3(-3f, 0.5f, 0f);
+            startPos1.transform.position = platformCenter + new Vector3(-3f, 0.1f, 0f);
             startPos1.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // Face right
             robot1StartPosition = startPos1.transform;
             Debug.Log("[SumoArenaManager] Created Robot 1 start position");
@@ -75,7 +78,7 @@ public class SumoArenaManager : MonoBehaviour
             GameObject startPos2 = new GameObject("Robot2StartPosition");
             startPos2.transform.parent = transform;
             Vector3 platformCenter = platform != null ? platform.transform.position : Vector3.zero;
-            startPos2.transform.position = platformCenter + new Vector3(3f, 0.5f, 0f);
+            startPos2.transform.position = platformCenter + new Vector3(3f, 0.1f, 0f);
             startPos2.transform.rotation = Quaternion.Euler(0f, -90f, 0f); // Face left
             robot2StartPosition = startPos2.transform;
             Debug.Log("[SumoArenaManager] Created Robot 2 start position");
@@ -98,10 +101,13 @@ public class SumoArenaManager : MonoBehaviour
         robot1Agent.arena = platform;
         robot2Agent.arena = platform;
         
-        // Set platform radius and fall height
-        robot1Agent.platformRadius = platformRadius;
+        // Set platform dimensions and fall height
+        float halfDepth = platformDepth > 0 ? platformDepth : platformRadius;
+        robot1Agent.platformHalfWidth = platformRadius;
+        robot1Agent.platformHalfDepth = halfDepth;
         robot1Agent.fallHeight = fallHeight;
-        robot2Agent.platformRadius = platformRadius;
+        robot2Agent.platformHalfWidth = platformRadius;
+        robot2Agent.platformHalfDepth = halfDepth;
         robot2Agent.fallHeight = fallHeight;
         
         Debug.Log("[SumoArenaManager] Agents configured successfully");
@@ -133,17 +139,15 @@ public class SumoArenaManager : MonoBehaviour
         episodeActive = true;
         
         // Reset robot 1
-        if (robot1Agent != null && robot1Agent.robotBody != null && robot1StartPosition != null)
+        if (robot1Agent != null && robot1StartPosition != null)
         {
-            robot1Agent.robotBody.transform.position = robot1StartPosition.position;
-            robot1Agent.robotBody.transform.rotation = robot1StartPosition.rotation;
+            robot1Agent.SetSpawnPoint(robot1StartPosition.position, robot1StartPosition.rotation);
         }
         
         // Reset robot 2
-        if (robot2Agent != null && robot2Agent.robotBody != null && robot2StartPosition != null)
+        if (robot2Agent != null && robot2StartPosition != null)
         {
-            robot2Agent.robotBody.transform.position = robot2StartPosition.position;
-            robot2Agent.robotBody.transform.rotation = robot2StartPosition.rotation;
+            robot2Agent.SetSpawnPoint(robot2StartPosition.position, robot2StartPosition.rotation);
         }
         
         Debug.Log("[SumoArenaManager] Episode reset");

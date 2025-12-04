@@ -67,3 +67,11 @@ __pycache__/
 
 # VS Code
 .vscode/
+
+# ML-Agents training results
+*.nn
+*.onnx
+models/
+summaries/
+results/
+recordings/

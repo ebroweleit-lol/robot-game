@@ -138,10 +138,12 @@ public class MilestoneRecorder : MonoBehaviour
                     center
                 );
                 
-                float edgeRatio1 = dist1 / robot1Agent.platformRadius;
-                float edgeRatio2 = dist2 / robot2Agent.platformRadius;
+                float maxDist1 = Mathf.Max(robot1Agent.platformHalfWidth, robot1Agent.platformHalfDepth);
+                float maxDist2 = Mathf.Max(robot2Agent.platformHalfWidth, robot2Agent.platformHalfDepth);
+                float edgeRatio1 = dist1 / maxDist1;
+                float edgeRatio2 = dist2 / maxDist2;
                 
-                // Very close to edge (95% of radius) but still on platform
+                // Very close to edge (95% of max distance) but still on platform
                 if (edgeRatio1 > 0.95f || edgeRatio2 > 0.95f)
                 {
                     TriggerRecording("FirstCloseCall", 

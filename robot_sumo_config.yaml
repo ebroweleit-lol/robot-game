@@ -13,7 +13,7 @@ behaviors:
       buffer_size: 10240
       
       # PPO specific parameters
-      beta: 5.0e-3  # Entropy coefficient (exploration)
+      beta: 1.0e-2  # Entropy coefficient (exploration) - increased for more randomness
       epsilon: 0.2  # PPO clipping parameter
       lambd: 0.95   # GAE lambda
       num_epoch: 3  # Number of passes through buffer during training

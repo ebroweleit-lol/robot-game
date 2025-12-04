@@ -16,22 +16,29 @@ public class RobotAgent : Agent
     [Tooltip("The opponent robot agent")]
     public RobotAgent opponentAgent;
     
+    [Header("Control Mode")]
+    [Tooltip("Enable to control this robot manually with WASD keys (disable for AI training)")]
+    public bool playerControlled = false;
+    
     [Header("Arena Settings")]
     [Tooltip("The platform/arena GameObject")]
     public GameObject arena;
     
-    [Tooltip("Distance from center before robot is considered off platform")]
-    public float platformRadius = 10f;
+    [Tooltip("Half-width of platform (X direction)")]
+    public float platformHalfWidth = 3.5f;  // Half of 6.96
+    
+    [Tooltip("Half-depth of platform (Z direction)")]
+    public float platformHalfDepth = 3.2f;  // Half of 6.37
     
     [Tooltip("Height below which robot is considered fallen")]
-    public float fallHeight = -2f;
+    public float fallHeight = -1.0f;  // Below platform at Y=-0.01
     
     [Header("Movement Settings")]
     [Tooltip("Movement speed")]
-    public float moveSpeed = 15f;
+    public float moveSpeed = 10f;
     
     [Tooltip("Rotation speed (degrees per second)")]
-    public float rotationSpeed = 120f;
+    public float rotationSpeed = 300f;  // Increased from 120 for faster turning
     
     [Tooltip("Acceleration rate")]
     public float acceleration = 10f;
@@ -47,25 +54,25 @@ public class RobotAgent : Agent
     
     [Header("Reward Settings")]
     [Tooltip("Reward for winning (pushing opponent off)")]
-    public float winReward = 1.0f;
+    public float winReward = 5.0f;  // Increased from 1.0 to emphasize winning
     
     [Tooltip("Penalty for falling off")]
-    public float losePenalty = -1.0f;
+    public float losePenalty = -5.0f;  // Increased from -1.0 to match win reward
     
     [Tooltip("Small reward per step for staying on platform")]
     public float existenceReward = 0.0f;  // Disabled - encourages passivity
     
     [Tooltip("Reward for being closer to opponent")]
-    public float approachReward = 0.02f;
+    public float approachReward = 0.05f;
     
     [Tooltip("Reward for facing opponent")]
-    public float facingReward = 0.01f;
+    public float facingReward = 0.0f;  // Disabled - causes spinning behavior
     
     [Tooltip("Reward for moving forward")]
-    public float forwardReward = 0.01f;
+    public float forwardReward = 0.03f;
     
     [Tooltip("Reward for pushing opponent")]
-    public float pushingReward = 0.1f;
+    public float pushingReward = 0.15f;
     
     // Private movement variables
     private Vector3 horizontalVelocity = Vector3.zero;
@@ -77,27 +84,43 @@ public class RobotAgent : Agent
     private Vector3 arenaCenter;
     private float lastDistanceToOpponent;
     private bool blocked = false;
+    private bool outOfBounds = false;  // Flag to stop movement when falling off
+    private Vector3 lastPosition;
+    private float timeWithoutMovement = 0f;
+    private bool hasMovedOnce = false;
+    private const float INACTIVITY_TIMEOUT = 5f;
+    private bool episodeScored = false;  // Prevent double-counting wins
     
     // Track current actions for visualization
     private float currentMoveAction = 0f;
     private float currentRotateAction = 0f;
     
+    // Persistent score tracking
+    private static int robot1Wins = 0;
+    private static int robot2Wins = 0;
+    private bool isRobot1 = false;  // Determined by name or position
+    
     public override void Initialize()
     {
-        // Get or add rigidbody
+        // Get rigidbody (should already exist from Inspector setup)
         rb = robotBody.GetComponent<Rigidbody>();
         if (rb == null)
         {
-            rb = robotBody.AddComponent<Rigidbody>();
+            Debug.LogError($"No Rigidbody found on {robotBody.name}! Please add one in Inspector.");
+            return;
         }
         
-        // Configure rigidbody
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-        rb.mass = 10f;
-        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        // Configure for robot sumo physics
+        rb.useGravity = true;  // Gravity enabled so robots can fall off platform
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | 
+                        RigidbodyConstraints.FreezeRotationZ;  // Only allow Y rotation
+        
+        // Determine if this is robot 1 or robot 2 based on position
+        // Robot 1 is on left side (negative X), Robot 2 is on right (positive X)
+        if (robotBody != null)
+        {
+            isRobot1 = robotBody.transform.position.x < 0;
+        }
         
         // Ensure collider exists
         if (robotBody.GetComponent<Collider>() == null)
@@ -105,9 +128,8 @@ public class RobotAgent : Agent
             robotBody.AddComponent<BoxCollider>();
         }
         
-        // Store initial transform
-        initialPosition = robotBody.transform.position;
-        initialRotation = robotBody.transform.rotation;
+        // Initial position will be set by SumoArenaManager
+        // Don't capture it here as ArenaManager moves robots in Start()
         
         // Get arena center
         if (arena != null)
@@ -122,19 +144,45 @@ public class RobotAgent : Agent
         lastDistanceToOpponent = float.MaxValue;
     }
     
+    /// <summary>
+    /// Called by SumoArenaManager to set the spawn position
+    /// </summary>
+    public void SetSpawnPoint(Vector3 position, Quaternion rotation)
+    {
+        initialPosition = position;
+        initialRotation = rotation;
+        robotBody.transform.position = position;
+        robotBody.transform.rotation = rotation;
+    }
+    
     public override void OnEpisodeBegin()
     {
         // Reset robot position and rotation
         robotBody.transform.position = initialPosition;
         robotBody.transform.rotation = initialRotation;
         
+        Debug.Log($"[{robotBody.name}] RESET to position {initialPosition}");
+        
         // Reset physics
         horizontalVelocity = Vector3.zero;
         rotationVelocity = 0f;
         pushPower = 0f;
         blocked = false;
+        outOfBounds = false;
         
-        // Note: Don't set velocities on kinematic rigidbody - not supported
+        // Reset inactivity tracking
+        lastPosition = initialPosition;
+        timeWithoutMovement = 0f;
+        hasMovedOnce = false;
+        episodeScored = false;
+        
+        // Reset Rigidbody velocities to prevent physics carryover
+        Rigidbody rb = robotBody.GetComponent<Rigidbody>();
+        if (rb != null && !rb.isKinematic)
+        {
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
         
         // Reset distance tracking
         if (opponentAgent != null && opponentAgent.robotBody != null)
@@ -150,9 +198,9 @@ public class RobotAgent : Agent
     {
         // Agent's position relative to arena center (3 values)
         Vector3 relativePos = robotBody.transform.position - arenaCenter;
-        sensor.AddObservation(relativePos.x / platformRadius);
+        sensor.AddObservation(relativePos.x / platformHalfWidth);
         sensor.AddObservation(relativePos.y);
-        sensor.AddObservation(relativePos.z / platformRadius);
+        sensor.AddObservation(relativePos.z / platformHalfDepth);
         
         // Agent's rotation (2 values - forward direction in XZ plane)
         Vector3 forward = robotBody.transform.forward;
@@ -171,9 +219,10 @@ public class RobotAgent : Agent
         {
             // Opponent's position relative to agent (3 values)
             Vector3 toOpponent = opponentAgent.robotBody.transform.position - robotBody.transform.position;
-            sensor.AddObservation(toOpponent.x / platformRadius);
+            float maxDist = Mathf.Max(platformHalfWidth, platformHalfDepth) * 2;
+            sensor.AddObservation(toOpponent.x / maxDist);
             sensor.AddObservation(toOpponent.y);
-            sensor.AddObservation(toOpponent.z / platformRadius);
+            sensor.AddObservation(toOpponent.z / maxDist);
             
             // Opponent's velocity relative to agent (3 values)
             Vector3 opponentVel = opponentAgent.GetVelocity();
@@ -186,7 +235,7 @@ public class RobotAgent : Agent
             
             // Distance to opponent (1 value)
             float distance = toOpponent.magnitude;
-            sensor.AddObservation(distance / platformRadius);
+            sensor.AddObservation(distance / maxDist);
             
             // Dot product of forward direction to opponent (1 value)
             float facingDot = Vector3.Dot(forward, toOpponent.normalized);
@@ -214,14 +263,14 @@ public class RobotAgent : Agent
         currentMoveAction = moveAction;
         currentRotateAction = rotateAction;
         
-        // Convert actions to movement
-        Vector3 forward = robotBody.transform.forward;
+        // Convert actions to movement - robot models are rotated 90 degrees
+        Vector3 forward = Quaternion.Euler(0, 90, 0) * robotBody.transform.forward;
         
         // Check for obstacles/collisions
         CheckForObstacles(forward, moveAction);
         
-        // Apply movement if not blocked
-        if (!blocked && Mathf.Abs(moveAction) > 0.01f)
+        // Apply movement if not blocked and not out of bounds
+        if (!blocked && !outOfBounds && Mathf.Abs(moveAction) > 0.01f)
         {
             Vector3 targetVelocity = forward * moveAction * moveSpeed;
             horizontalVelocity = Vector3.Lerp(horizontalVelocity, targetVelocity, acceleration * Time.fixedDeltaTime);
@@ -256,9 +305,20 @@ public class RobotAgent : Agent
             rotationVelocity = Mathf.Lerp(rotationVelocity, 0f, friction * Time.fixedDeltaTime);
         }
         
-        // Apply physics
-        if (rb != null)
+        // Apply physics to rigidbody
+        if (rb != null && !rb.isKinematic)
         {
+            // Dynamic rigidbody - set velocities directly
+            rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, horizontalVelocity.z);
+            
+            // Use AddTorque for rotation instead of setting angular velocity
+            // This works better with small colliders
+            float torque = rotationVelocity * rb.mass * 0.05f;  // Fine-tuned for controlled rotation
+            rb.AddTorque(0, torque, 0, ForceMode.Force);
+        }
+        else if (rb != null && rb.isKinematic)
+        {
+            // Kinematic rigidbody - use MovePosition/MoveRotation
             Vector3 newPos = robotBody.transform.position + horizontalVelocity * Time.fixedDeltaTime;
             rb.MovePosition(newPos);
             
@@ -383,20 +443,58 @@ public class RobotAgent : Agent
         // Check if this agent fell off
         if (robotBody.transform.position.y < fallHeight)
         {
+            Debug.Log($"[{robotBody.name}] FELL OFF! Y={robotBody.transform.position.y:F2} < {fallHeight}");
             AddReward(losePenalty);
+            
+            // Update score (only once per episode)
+            if (!episodeScored)
+            {
+                if (isRobot1)
+                    robot2Wins++;
+                else
+                    robot1Wins++;
+                episodeScored = true;
+            }
+            
+            // End episode for both robots
+            if (opponentAgent != null)
+            {
+                opponentAgent.AddReward(winReward); // Opponent wins
+                opponentAgent.EndEpisode();
+            }
             EndEpisode();
             return;
         }
         
-        // Check if outside platform radius
-        float distanceFromCenter = Vector3.Distance(
-            new Vector3(robotBody.transform.position.x, arenaCenter.y, robotBody.transform.position.z),
-            arenaCenter
-        );
+        // Check if outside platform bounds (square platform)
+        // End match immediately when robot center crosses the edge
+        Vector3 relativePos = robotBody.transform.position - arenaCenter;
+        float absX = Mathf.Abs(relativePos.x);
+        float absZ = Mathf.Abs(relativePos.z);
         
-        if (distanceFromCenter > platformRadius)
+        // End as soon as center crosses platform edge (no tolerance for clinging)
+        if (absX > platformHalfWidth || absZ > platformHalfDepth)
         {
+            Debug.Log($"[{robotBody.name}] OFF PLATFORM! X={absX:F2}/{platformHalfWidth} Z={absZ:F2}/{platformHalfDepth}");
+            
             AddReward(losePenalty);
+            
+            // Update score (only once per episode)
+            if (!episodeScored)
+            {
+                if (isRobot1)
+                    robot2Wins++;
+                else
+                    robot1Wins++;
+                episodeScored = true;
+            }
+            
+            // End episode for both robots
+            if (opponentAgent != null)
+            {
+                opponentAgent.AddReward(winReward); // Opponent wins
+                opponentAgent.EndEpisode();
+            }
             EndEpisode();
             return;
         }
@@ -407,18 +505,74 @@ public class RobotAgent : Agent
             if (opponentAgent.robotBody.transform.position.y < fallHeight)
             {
                 AddReward(winReward);
+                
+                // End episode for both robots
+                opponentAgent.AddReward(losePenalty);
+                opponentAgent.EndEpisode();
                 EndEpisode();
                 return;
             }
             
-            float opponentDistance = Vector3.Distance(
-                new Vector3(opponentAgent.robotBody.transform.position.x, arenaCenter.y, opponentAgent.robotBody.transform.position.z),
-                arenaCenter
-            );
+            // Check if opponent is outside platform bounds
+            Vector3 opponentRelativePos = opponentAgent.robotBody.transform.position - arenaCenter;
+            float opponentAbsX = Mathf.Abs(opponentRelativePos.x);
+            float opponentAbsZ = Mathf.Abs(opponentRelativePos.z);
             
-            if (opponentDistance > platformRadius)
+            if (opponentAbsX > platformHalfWidth || opponentAbsZ > platformHalfDepth)
             {
+                // Push opponent further off if center is over edge (prevents clinging)
+                Rigidbody opponentRb = opponentAgent.robotBody.GetComponent<Rigidbody>();
+                if (opponentRb != null)
+                {
+                    Vector3 pushDirection = opponentRelativePos.normalized;
+                    opponentRb.AddForce(pushDirection * 2000f + Vector3.down * 500f, ForceMode.Impulse);
+                }
+                
                 AddReward(winReward);
+                
+                // End episode for both robots
+                opponentAgent.AddReward(losePenalty);
+                opponentAgent.EndEpisode();
+                EndEpisode();
+                return;
+            }
+        }
+        
+        // Check for inactivity (not moving for 5 seconds after initial movement)
+        Vector3 currentPosition = robotBody.transform.position;
+        float distanceMoved = Vector3.Distance(currentPosition, lastPosition);
+        
+        if (distanceMoved > 0.1f)  // Moved more than 0.1 units
+        {
+            hasMovedOnce = true;
+            timeWithoutMovement = 0f;
+            lastPosition = currentPosition;
+        }
+        else if (hasMovedOnce)  // Only check inactivity after they've moved at least once
+        {
+            timeWithoutMovement += Time.fixedDeltaTime;
+            
+            if (timeWithoutMovement >= INACTIVITY_TIMEOUT)
+            {
+                Debug.Log($"[{robotBody.name}] INACTIVITY TIMEOUT! No movement for {INACTIVITY_TIMEOUT} seconds");
+                AddReward(losePenalty);
+                
+                // Update score (only once per episode)
+                if (!episodeScored)
+                {
+                    if (isRobot1)
+                        robot2Wins++;
+                    else
+                        robot1Wins++;
+                    episodeScored = true;
+                }
+                
+                // End episode for both robots
+                if (opponentAgent != null)
+                {
+                    opponentAgent.AddReward(winReward);
+                    opponentAgent.EndEpisode();
+                }
                 EndEpisode();
                 return;
             }
@@ -475,6 +629,19 @@ public class RobotAgent : Agent
     // Visualization
     void OnGUI()
     {
+        // Draw score at top of screen (only draw once, from robot 1)
+        if (isRobot1)
+        {
+            GUIStyle scoreStyle = new GUIStyle();
+            scoreStyle.fontSize = 32;
+            scoreStyle.fontStyle = FontStyle.Bold;
+            scoreStyle.normal.textColor = Color.white;
+            scoreStyle.alignment = TextAnchor.MiddleCenter;
+            
+            string scoreText = $"Robot 1: {robot1Wins}  |  Robot 2: {robot2Wins}";
+            GUI.Label(new Rect(Screen.width/2 - 200, 20, 400, 40), scoreText, scoreStyle);
+        }
+        
         if (robotBody != null && Camera.main != null)
         {
             Vector3 screenPos = Camera.main.WorldToScreenPoint(robotBody.transform.position + Vector3.up * 2.5f);
@@ -554,5 +721,33 @@ public class RobotAgent : Agent
         }
         
         GUI.color = Color.white; // Reset
+    }
+    
+    // Draw forward direction in Scene view
+    void OnDrawGizmos()
+    {
+        if (robotBody != null)
+        {
+            // Draw forward direction arrow (corrected for robot model orientation)
+            Vector3 pos = robotBody.transform.position;
+            Vector3 forward = Quaternion.Euler(0, 90, 0) * robotBody.transform.forward;  // Same correction as movement
+            
+            Gizmos.color = Color.blue;
+            Gizmos.DrawLine(pos, pos + forward * 1.5f);
+            
+            // Arrow head
+            Vector3 arrowTip = pos + forward * 1.5f;
+            Vector3 right = Quaternion.Euler(0, 90, 0) * robotBody.transform.right;
+            Gizmos.DrawLine(arrowTip, arrowTip - forward * 0.3f + right * 0.2f);
+            Gizmos.DrawLine(arrowTip, arrowTip - forward * 0.3f - right * 0.2f);
+            
+            // Label
+            UnityEditor.Handles.Label(pos + forward * 1.8f, "FORWARD", new GUIStyle() 
+            { 
+                normal = new GUIStyleState() { textColor = Color.blue },
+                fontSize = 12,
+                fontStyle = FontStyle.Bold
+            });
+        }
     }
 }
