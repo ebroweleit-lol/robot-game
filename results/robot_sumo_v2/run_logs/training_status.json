@@ -1,52 +1,7 @@
 {
     "RobotAgent": {
-        "elo": 79.17750664529053,
+        "elo": 73.96378214306554,
         "checkpoints": [
-            {
-                "steps": 1079745,
-                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1079745.onnx",
-                "reward": 1.229477635201286,
-                "creation_time": 1764811913.806407,
-                "auxillary_file_paths": [
-                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1079745.pt"
-                ]
-            },
-            {
-                "steps": 1099894,
-                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1099894.onnx",
-                "reward": 0.8319515513049232,
-                "creation_time": 1764811996.719829,
-                "auxillary_file_paths": [
-                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1099894.pt"
-                ]
-            },
-            {
-                "steps": 1119917,
-                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1119917.onnx",
-                "reward": 0.8136013329029084,
-                "creation_time": 1764812083.50037,
-                "auxillary_file_paths": [
-                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1119917.pt"
-                ]
-            },
-            {
-                "steps": 1139895,
-                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1139895.onnx",
-                "reward": 1.2948899886437826,
-                "creation_time": 1764812168.468986,
-                "auxillary_file_paths": [
-                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1139895.pt"
-                ]
-            },
-            {
-                "steps": 1159661,
-                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1159661.onnx",
-                "reward": 1.6091689434316423,
-                "creation_time": 1764812250.87964,
-                "auxillary_file_paths": [
-                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1159661.pt"
-                ]
-            },
             {
                 "steps": 1163461,
                 "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1163461.onnx",
@@ -91,15 +46,60 @@
                 "auxillary_file_paths": [
                     "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.pt"
                 ]
+            },
+            {
+                "steps": 1168319,
+                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.onnx",
+                "reward": null,
+                "creation_time": 1764876107.386296,
+                "auxillary_file_paths": [
+                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.pt"
+                ]
+            },
+            {
+                "steps": 1168319,
+                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.onnx",
+                "reward": null,
+                "creation_time": 1764877072.548803,
+                "auxillary_file_paths": [
+                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.pt"
+                ]
+            },
+            {
+                "steps": 1168319,
+                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.onnx",
+                "reward": null,
+                "creation_time": 1764877804.299628,
+                "auxillary_file_paths": [
+                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.pt"
+                ]
+            },
+            {
+                "steps": 1168319,
+                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.onnx",
+                "reward": null,
+                "creation_time": 1764877904.365053,
+                "auxillary_file_paths": [
+                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.pt"
+                ]
+            },
+            {
+                "steps": 1176021,
+                "file_path": "results/robot_sumo_v2/RobotAgent/RobotAgent-1176021.onnx",
+                "reward": 0.9222604092210531,
+                "creation_time": 1764879365.275486,
+                "auxillary_file_paths": [
+                    "results/robot_sumo_v2/RobotAgent/RobotAgent-1176021.pt"
+                ]
             }
         ],
         "final_checkpoint": {
-            "steps": 1168319,
+            "steps": 1176021,
             "file_path": "results/robot_sumo_v2/RobotAgent.onnx",
-            "reward": 0.9757885443312782,
-            "creation_time": 1764814170.804608,
+            "reward": 0.9222604092210531,
+            "creation_time": 1764879365.275486,
             "auxillary_file_paths": [
-                "results/robot_sumo_v2/RobotAgent/RobotAgent-1168319.pt"
+                "results/robot_sumo_v2/RobotAgent/RobotAgent-1176021.pt"
             ]
         }
     },
