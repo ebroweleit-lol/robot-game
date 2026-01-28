@@ -142,6 +142,8 @@ public class RobotAgent : Agent
         }
         
         lastDistanceToOpponent = float.MaxValue;
+        
+        Debug.Log($"[RobotAgent] {robotBody.name} - isRobot1={isRobot1}, Position.x={robotBody.transform.position.x}");
     }
     
     /// <summary>
@@ -506,6 +508,16 @@ public class RobotAgent : Agent
             {
                 AddReward(winReward);
                 
+                // Update score (only once per episode)
+                if (!episodeScored)
+                {
+                    if (isRobot1)
+                        robot1Wins++;
+                    else
+                        robot2Wins++;
+                    episodeScored = true;
+                }
+                
                 // End episode for both robots
                 opponentAgent.AddReward(losePenalty);
                 opponentAgent.EndEpisode();
@@ -529,6 +541,16 @@ public class RobotAgent : Agent
                 }
                 
                 AddReward(winReward);
+                
+                // Update score (only once per episode)
+                if (!episodeScored)
+                {
+                    if (isRobot1)
+                        robot1Wins++;
+                    else
+                        robot2Wins++;
+                    episodeScored = true;
+                }
                 
                 // End episode for both robots
                 opponentAgent.AddReward(losePenalty);
