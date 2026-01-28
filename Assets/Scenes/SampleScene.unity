@@ -294,7 +294,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6147826009795423660, guid: 2fa530b1c8dbe40e88ebc18d9288a529, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.18350449
+      value: 0.188
       objectReference: {fileID: 0}
     - target: {fileID: 6147826009795423660, guid: 2fa530b1c8dbe40e88ebc18d9288a529, type: 3}
       propertyPath: m_LocalPosition.z
@@ -789,9 +789,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 4814140183114437194, guid: 412047ab4307747b0bb5183c4f8db548, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1571495406}
-    - targetCorrespondingSourceObject: {fileID: 4814140183114437194, guid: 412047ab4307747b0bb5183c4f8db548, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1571495407}
   m_SourcePrefab: {fileID: 3150474306388093854, guid: 412047ab4307747b0bb5183c4f8db548, type: 3}
 --- !u!1 &1571495394 stripped
 GameObject:
@@ -828,7 +825,7 @@ MonoBehaviour:
   MaxStep: 0
   robotBody: {fileID: 1571495394}
   opponentAgent: {fileID: 1753792251}
-  playerControlled: 1
+  playerControlled: 0
   arena: {fileID: 1163425389}
   platformHalfWidth: 3.5
   platformHalfDepth: 3.2
@@ -906,7 +903,7 @@ MonoBehaviour:
     hasUpgradedBrainParametersWithActionSpec: 1
   m_Model: {fileID: 0}
   m_InferenceDevice: 0
-  m_BehaviorType: 1
+  m_BehaviorType: 0
   m_BehaviorName: RobotAgent
   TeamId: 0
   m_UseChildSensors: 1
@@ -960,34 +957,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.4, y: 0.3, z: 0.4}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1571495407
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1571495394}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b00e817c14ca449b18de0d470c29f9fb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::WASDMovement
-  Target: {fileID: 0}
-  TargetName: a5937a451209_a_square__low__box_shaped_ba_0_glb
-  MoveSpeed: 5
-  MaxRotationSpeed: 120
-  RotationAcceleration: 180
-  RotationFriction: 150
-  Forward: 0
-  GravityForce: 9.8
-  GroundCheckDistance: 1
-  CollisionDistance: 0.3
-  CollisionRadius: 0.3
-  Acceleration: 10
-  Friction: 15
-  MaxSpeed: 15
-  PushPowerGainRate: 50
-  PushPowerDecayRate: 2
 --- !u!1 &1753792246 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 4814140183114437194, guid: 2fa530b1c8dbe40e88ebc18d9288a529, type: 3}
